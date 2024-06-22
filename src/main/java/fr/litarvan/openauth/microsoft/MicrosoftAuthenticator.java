@@ -30,6 +30,8 @@ import fr.litarvan.openauth.microsoft.model.request.XSTSAuthorizationProperties;
 import fr.litarvan.openauth.microsoft.model.request.XboxLiveLoginProperties;
 import fr.litarvan.openauth.microsoft.model.request.XboxLoginRequest;
 import fr.litarvan.openauth.microsoft.model.response.*;
+import org.cef.CefApp;
+import org.cef.CefClient;
 
 import java.io.UnsupportedEncodingException;
 import java.net.*;
@@ -40,6 +42,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -78,9 +81,11 @@ public class MicrosoftAuthenticator {
 
 
     private final HttpClient http;
+    private Supplier<CefApp> cefApp;
 
-    public MicrosoftAuthenticator() {
+    public MicrosoftAuthenticator(Supplier<CefApp> cefApp) {
         this.http = new HttpClient();
+        this.cefApp = cefApp;
     }
 
     /**
@@ -151,7 +156,7 @@ public class MicrosoftAuthenticator {
             CookieHandler.setDefault(new CookieManager());
 
         String url = String.format("%s?%s", MICROSOFT_AUTHORIZATION_ENDPOINT, http.buildParams(getLoginParams()));
-        LoginFrame frame = new LoginFrame();
+        LoginFrame frame = new LoginFrame(this.cefApp.get());
 
         return frame.start(url).thenApplyAsync(result -> {
             try {

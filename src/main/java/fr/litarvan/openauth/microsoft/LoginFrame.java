@@ -18,12 +18,17 @@
  */
 package fr.litarvan.openauth.microsoft;
 
-import javafx.application.Platform;
-import javafx.embed.swing.JFXPanel;
-import javafx.scene.Scene;
-import javafx.scene.web.WebView;
+import org.cef.CefApp;
+import org.cef.CefClient;
+import org.cef.browser.CefBrowser;
+import org.cef.browser.CefFrame;
+import org.cef.browser.CefMessageRouter;
+import org.cef.callback.CefQueryCallback;
+import org.cef.handler.CefLoadHandlerAdapter;
+import org.cef.handler.CefMessageRouterHandlerAdapter;
 
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.concurrent.CompletableFuture;
@@ -41,14 +46,14 @@ public class LoginFrame extends JFrame
     private CompletableFuture<String> future;
     private boolean completed;
 
-    public LoginFrame()
-    {
+    private final CefApp cefApp;
+
+    public LoginFrame(CefApp cefApp) {
+        this.cefApp = cefApp;
         this.setTitle("Microsoft Authentication");
         this.setSize(750, 750);
         this.setLocationRelativeTo(null);
         this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-
-        this.setContentPane(new JFXPanel());
     }
 
     public CompletableFuture<String> start(String url)
@@ -66,27 +71,38 @@ public class LoginFrame extends JFrame
             }
         });
 
-        Platform.runLater(() -> this.init(url));
+        SwingUtilities.invokeLater(() -> init(url));
         return this.future;
     }
 
-    protected void init(String url)
-    {
-        WebView webView = new WebView();
-        JFXPanel content = (JFXPanel) this.getContentPane();
+    protected void init(String url) {
+        JLayeredPane layeredPane = new JLayeredPane();
+        layeredPane.setLayout(null);
+        CefClient client = this.cefApp.createClient();
+        System.out.println(url);
 
-        content.setScene(new Scene(webView, this.getWidth(), this.getHeight()));
+        CefBrowser browser = client.createBrowser(url, false, false);
+        Component browserUI = browser.getUIComponent();
+        browserUI.setBounds(0, 0, this.getWidth(), this.getHeight());
+        layeredPane.add(browser.getUIComponent(), JLayeredPane.DEFAULT_LAYER);
+        this.setContentPane(layeredPane);
+        CefMessageRouter msgRouter = CefMessageRouter.create();
 
-        webView.getEngine().locationProperty().addListener((observable, oldValue, newValue) -> {
-            if (newValue.contains("access_token")) {
-                this.future.complete(newValue);
-                completed = true;
-                this.dispose();
+        client.addLoadHandler(new CefLoadHandlerAdapter() {
+            @Override
+            public void onLoadingStateChange(CefBrowser browser, boolean isLoading, boolean canGoBack, boolean canGoForward) {
+                String url = browser.getURL();
+                if (url.contains("access_token")) {
+                    future.complete(url);
+                    completed = true;
+                    SwingUtilities.invokeLater(() -> dispose());
+                }
             }
         });
-        webView.getEngine().setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36");
-        webView.getEngine().load(url);
+        client.addMessageRouter(msgRouter);
 
         this.setVisible(true);
+        this.repaint();
+        this.revalidate();
     }
 }
