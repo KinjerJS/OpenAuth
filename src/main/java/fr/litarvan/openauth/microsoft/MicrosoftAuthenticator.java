@@ -88,6 +88,10 @@ public class MicrosoftAuthenticator {
         this.cefApp = cefApp;
     }
 
+    public MicrosoftAuthenticator() {
+        this.http = new HttpClient();
+    }
+
     /**
      * Logs in a player using its Microsoft account credentials, and retrieve its Minecraft profile
      *
@@ -156,7 +160,28 @@ public class MicrosoftAuthenticator {
             CookieHandler.setDefault(new CookieManager());
 
         String url = String.format("%s?%s", MICROSOFT_AUTHORIZATION_ENDPOINT, http.buildParams(getLoginParams()));
+        if (this.cefApp == null) {
+            return this.loginWithAsyncWebviewFX();
+        }
         LoginFrame frame = new LoginFrame(this.cefApp.get());
+
+        return frame.start(url).thenApplyAsync(result -> {
+            try {
+                if(result != null)
+                    return loginWithTokens(extractTokens(result),true);
+                else return null;
+            } catch (MicrosoftAuthenticationException e) {
+                throw new CompletionException(e);
+            }
+        });
+    }
+
+    public CompletableFuture<MicrosoftAuthResult> loginWithAsyncWebviewFX() {
+        if(!System.getProperty("java.version").startsWith("1."))
+            CookieHandler.setDefault(new CookieManager());
+
+        String url = String.format("%s?%s", MICROSOFT_AUTHORIZATION_ENDPOINT, http.buildParams(getLoginParams()));
+        LoginFrameFX frame = new LoginFrameFX();
 
         return frame.start(url).thenApplyAsync(result -> {
             try {
